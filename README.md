@@ -1,10 +1,12 @@
 # System Design - Negative Caching with Base-n Encoding in Golang
 
+Blog: <https://medium.com/@napatrc/system-design-negative-caching-with-base-n-encoding-in-golang-090080fadca0>
+
 Negative Caching เป็นเทคนิคที่ช่วยลดภาระการ query ข้อมูลที่ไม่พบซ้ำๆ โดยเก็บผลลัพธ์ว่า "ไม่มีสิ่งนี้อยู่" ไว้ในแคช ทำให้สามารถตอบกลับ request ได้อย่างรวดเร็วขึ้นเพื่อช่วยลดโหลดในการ query ฐานข้อมูล
 
 ![Negative Caching](imgs/negative-cache-01.png)
 
-ในบทความนี้มีการแสดงเทคนิคอื่นๆเพื่อเพิ่มประสิทธิภาพการทำงานของโปรแกรมด้วย Golang เช่น การเลือก type สำหรับ map key, การเลือกใช้ map value แบบ struct{}, การล้าง map และการกำหนดความจุล่วงหน้า Pre-allocate large map เป็นต้น ซึ่งจะช่วยลด overhead ของหน่วยความจำและเพิ่มความเร็วการทำงานของระบบได้ ซึ่งจะช่วยส่งผลให้ระบบบริการของเราทำงานได้เสถียรขึ้น รองรับทราฟิกหนักๆ ได้ดีขึ้น และลดต้นทุนด้านทรัพยากรลงได้ โดยในตอนท้ายได้มีการแสดงตัวอย่างการนำไปใช้งานเพื่อให้เห็นภาพชัดเจนขึ้น
+ในบทความนี้มีการแสดงเทคนิคอื่นๆ เพื่อเพิ่มประสิทธิภาพการทำงานของโปรแกรมด้วย Golang เช่น การเลือก type สำหรับ map key, การเลือกใช้ map value แบบ struct{}, การล้าง map และการกำหนดความจุล่วงหน้า Pre-allocate large map เป็นต้น ซึ่งจะช่วยลด overhead ของหน่วยความจำและเพิ่มความเร็วการทำงานของระบบได้ ซึ่งจะช่วยส่งผลให้ระบบบริการของเราทำงานได้เสถียรขึ้น รองรับทราฟิกหนักๆ ได้ดีขึ้น และลดต้นทุนด้านทรัพยากรลงได้ โดยในตอนท้ายได้มีการแสดงตัวอย่างการนำไปใช้งานเพื่อให้เห็นภาพชัดเจนขึ้น
 
 ## Negative Caching
 
@@ -99,15 +101,15 @@ func (c *Cache) FreeAndWait() {
 }
 ```
 
-## เทคนิคลดการใช้หน่วยความจำในระดับ Go code
+Negative Caching ถือเป็นการออกแบบในระดับ High Level Design (HLD) ส่วนในระดับ Low Level Design (LLD) เช่นในการ implement โค้ดด้วย Go ก็สามารถประยุกต์ใช้เทคนิคต่าง ๆ เพื่อปรับปรุงประสิทธิภาพและการจัดการหน่วยความจำได้ ดังต่อไปนี้
 
-นอกจาก Negative Caching แล้ว เรายังสามารถปรับปรุงประสิทธิภาพในเลเวลของโค้ดและการใช้หน่วยความจำด้วยเทคนิคต่างๆ ได้ดังนี้
+## เทคนิคลดการใช้หน่วยความจำในระดับ Go code
 
 - Default map ของ Go ไม่รองรับการอ่าน/เขียนพร้อมกัน  
 จะต้องใช้ sync.RWMutex ในโค้ดนี้ใช้ RLock/RUnlock เมื่ออ่าน และ Lock/Unlock เมื่อเขียนหรือแก้ไข เพื่อป้องกัน race condition เมื่อมีหลาย goroutine เรียกใช้งานพร้อมกัน
 
 - Map value type แทนที่จะใช้ `bool` ให้ใช้เป็น type `struct{}`  
-เนื่องจากคุณสมบัติ zero-byte memory เพื่อประหยัดหน่วยความจำ ในการ set ค่าลงไปทำได้โดยการใช้ value เป็น `struct{}{}`
+เนื่องจากคุณสมบัติ zero-byte memory เพื่อประหยัดหน่วยความจำ ในการ set ค่าลงไปทำได้โดยใช้ value เป็น `struct{}{}`
 
 ```golang
 c.data := make(map[int32]struct{}, N)
@@ -149,7 +151,7 @@ func convertKeyBase11(s string) int32 {
 อีกทั้งยังชัดเจนว่า map นี้ใช้เพื่อเป็นเซ็ต (ค่าเพียงเพื่อบอกว่ามีคีย์นั้นอยู่เท่านั้น) โค้ดตัวอย่างข้างต้นจึงใช้ struct{}
 
 - Clearing Map  
-Go 1.21 ได้เพิ่มฟังก์ชัน `clear(m)` สำหรับล้างข้อมูลใน map สำให้สามารถเคลียร์ค่าใน map ได้ง่ายขึ้นกว่าเดิมที่ต้อง loop delete() ทีละฟีลเอง
+Go 1.21 ได้เพิ่มฟังก์ชัน `clear(m)` สำหรับล้างข้อมูลใน map ทำให้สามารถเคลียร์ค่าใน map ได้ง่ายขึ้นกว่าเดิมที่ต้อง loop delete() ทีละฟีลเอง
 
 ```golang
 // Go >= 1.21
@@ -161,7 +163,7 @@ clear(items)
 //}
 ```
 
-Note: การลบ key element ออกจาก map ไม่ว่าจะด้วย clear หรือ delete จะไม่ลดจำนวณ buckets ที่เคย allocate ลง นั่นคือ memory ที่ map ใช้เบื้องหลังยังคงขนาดเท่าเดิม
+Note: การลบ key element ออกจาก map ไม่ว่าจะด้วย clear หรือ delete จะไม่ลดจำนวน buckets ที่เคย allocate ลง นั่นคือ memory ที่ map ใช้เบื้องหลังยังคงขนาดเท่าเดิม
 
 - ตัวอย่างการเร่ง GC ให้คืนหน่วยความจำ และข้อจำกัด  
 หากต้องการคืนหน่วยความจำจริงๆ เราสามารถเรียก runtime.GC() และ debug.FreeOSMemory() เพื่อเร่งให้ GC คืนหน่วยความจำที่ไม่ได้ใช้งานแล้วได้
@@ -223,7 +225,7 @@ keysMap := make(map[int32]struct{}, maxComb)
 
 ## ตัวอย่าง Usecase การปรับปรุงประสิทธิภาพระบบ query สินค้าด้วย Negative Caching
 
-สมมุติว่าเราอยากจะสร้างระบบ search lottory แบบตัวเลข 6 หลักซึ่งจะต้องมีการ search ป้อนตัวเลข input จาก user เข้ามาค้นหาข้อมูลที่หลังบ้าน
+สมมุติว่าเราอยากจะสร้างระบบ search lottery แบบตัวเลข 6 หลักซึ่งจะต้องมีการ search ป้อนตัวเลข input จาก user เข้ามาค้นหาข้อมูลที่หลังบ้าน
 ซึ่งในบางครั้งอาจจะมีเลขบางชุดที่ hot มากๆ เช่น สรยุทธใบ้หวย, เลขป้ายทะเบียนนายก, เลขดังจากพ่อหมอต่างๆ เป็นต้น
 เลขชุดดังกล่าวจะถูกขายหมดอย่างรวดเร็วแน่นอนและแม้สินค้าดังกล่าวจะ “หมดสต็อกไปแล้ว” ลูกค้าก็ยังถล่มเข้ามาค้นหาเลขดังกล่าวอยู่ดีทำให้ระบบโดยรวมทำงานช้าลงตามไปด้วย
 
@@ -311,7 +313,7 @@ note over DB: The database is now protected from the thundering herd.
 
 หลังจากเราได้ภาพใหญ่ในกระบวนการทำงานของระบบแล้ว เราสามารถเริ่มต้นออกแบบการ Encode string to int32 ด้วยวิธี base-n encoding ได้ดังนี้
 
-user สามารถป้อน input string สำหรับค้นหาเลข lottory ที่ต้องการค้นหาได้สูงสุด 6 ตำแหน่ง แต่ละตำแหน่งมีค่าได้ 11 แบบคือ 0,1,...,9 และ - (สำหรับ wildcard) ดังนั้นเราจะใช้เลขฐาน 11 เป็น base
+user สามารถป้อน input string สำหรับค้นหาเลข lottery ที่ต้องการค้นหาได้สูงสุด 6 ตำแหน่ง แต่ละตำแหน่งมีค่าได้ 11 แบบคือ 0,1,...,9 และ - (สำหรับ wildcard) ดังนั้นเราจะใช้เลขฐาน 11 เป็น base
 
 ค่าประจำแต่ละตำแหน่งเป็นตัวเลข \(v_0, v_1, v_2, v_3, v_4, v_5\) (จากซ้ายไปขวา) เมื่อมองเป็นเลขฐาน 11 จะได้สมการดังนี้
 
@@ -606,11 +608,12 @@ HeapReleased เพิ่มขึ้นอย่างมาก เป็น 19
 
 - หากมีการเติมสินค้าเข้าไปในระบบ อย่าลืมว่าจะต้องมา clear negative cache ด้วยไม่งั้นจะค้นหาสินค้าไม่เจอ ยิ่งเราใช้ negative cache ในระดับ local cache ของ pod แต่ละตัว จะทำให้การจัดการ evict cache ยากขึ้นต้องพิจารณาและวางแผนให้ดีนะครับ
 
-- ต้องระมัดระวังเกี่ยวกับขนาดของ cache ให้ดีเมื่อเราต้องทำงานกับข้อมูลที่มี combination จำนวณมากอาจจะทำให้ memory ของ map มีการบวมเกินกว่าที่ request resource ได้
+- ต้องระมัดระวังเกี่ยวกับขนาดของ cache ให้ดีเมื่อเราต้องทำงานกับข้อมูลที่มี combination จำนวนมากอาจจะทำให้ memory ของ map มีการบวมเกินกว่าที่ request resource ได้
 
 ## References
 
 - [Github repository](https://github.com/Napat/negative-cache-with-base-n-encoding-in-golang)
+- [Negative caching design](https://www.geeksforgeeks.org/system-design/negative-caching-system-design/)
 - [Empty struct,struct{}, has size zero and carries no information](https://stackoverflow.com/a/37320521)
 - [How to optimize map memory in Golang](https://labex.io/tutorials/go-how-to-optimize-map-memory-in-golang-437902)
 - [Go maps and hidden memory leaks: What every developer should know](https://medium.com/@caring_smitten_gerbil_914/go-maps-and-hidden-memory-leaks-what-every-developer-should-know-17b322b177eb)
